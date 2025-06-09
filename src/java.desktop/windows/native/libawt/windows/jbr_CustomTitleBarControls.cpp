@@ -354,7 +354,7 @@ class CustomTitleBarControls::Style {
 
 public:
     float height {0}, width {0};
-    int dark {0};
+    int dark {0}, allowRtl {0};
     ButtonColors colors {};
 
     bool Update(jobject target, JNIEnv* env) {
@@ -369,6 +369,7 @@ public:
                 height = JNU_CallMethodByName(env, nullptr, titleBar, "getHeight", "()F").f;
                 width = GetNumberProperty(env, properties, L"controls.width");
                 dark = GetBooleanProperty(env, properties, L"controls.dark");
+                allowRtl = GetBooleanProperty(env, properties, L"controls.allowRTL");
                 // Get colors
                 #define GET_STATE_COLOR(NAME, PROPERTY) \
                 colors[0][(int)State::NAME] = GetColorProperty(env, properties, L"controls.background." PROPERTY); \
@@ -493,17 +494,20 @@ void CustomTitleBarControls::Update(State windowState) {
     if (!(styleBits & WS_MAXIMIZEBOX)) maxState = State::DISABLED;
 
     bool dark = style->dark != -1 ? (bool) style->dark : !AppsUseLightThemeCached;
+    bool allowRtl = style-> allowRtl != -1 ? (bool) style->allowRtl : false;
 
     // Paint buttons
     resources->graphics->Clear(0);
     if (allButtons) {
         int w = newSize.cx / 3;
         Type maxType = IsZoomed(parent) ? Type::RESTORE : Type::MAXIMIZE;
-        if (ltr) {
+        if (ltr || allowRtl) {
             PaintButton(Type::MINIMIZE, minState, 0, w, scale, dark);
             PaintButton(maxType, maxState, w, w, scale, dark);
             PaintButton(Type::CLOSE, closeState, w*2, newSize.cx-w*2, scale, dark);
         } else {
+            // When RTL is not supported, but we are in RTL, we must invert the order we 
+            // place the buttons to keep the expected order
             PaintButton(Type::CLOSE, closeState, 0, newSize.cx-w*2, scale, dark);
             PaintButton(maxType, maxState, newSize.cx-w*2, w, scale, dark);
             PaintButton(Type::MINIMIZE, minState, newSize.cx-w, w, scale, dark);
@@ -514,10 +518,14 @@ void CustomTitleBarControls::Update(State windowState) {
 
     // Update window
     POINT position {0, 0}, ptSrc {0, 0};
+    
+    RECT parentRect;
+    GetClientRect(parent, &parentRect);
+    
     if (ltr) {
-        RECT parentRect;
-        GetClientRect(parent, &parentRect);
         position.x = parentRect.right - newSize.cx;
+    } else if (allowRtl) {
+        position.x = parentRect.left - newSize.cx;
     }
 
     BLENDFUNCTION blend;
@@ -535,7 +543,7 @@ void CustomTitleBarControls::Update(State windowState) {
     JNIEnv *env = (JNIEnv *) JNU_GetEnv(jvm, JNI_VERSION_1_2);
     jobject target = env->NewLocalRef(this->target);
     if (target) {
-        env->CallVoidMethod(target, jmUpdateInsets, !ltr ? userWidth : 0.0f, ltr ? userWidth : 0.0f);
+        env->CallVoidMethod(target, jmUpdateInsets, !ltr && allowRtl ? userWidth : 0.0f, ltr || !allowRtl ? userWidth : 0.0f);
         env->DeleteLocalRef(target);
     }
 }
