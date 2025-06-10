@@ -401,7 +401,18 @@ void CustomTitleBarControls::Refresh(CustomTitleBarControls*& controls, HWND par
 CustomTitleBarControls::CustomTitleBarControls(HWND parent, jweak target, const Style& style) {
     this->parent = parent;
     this->target = target;
-    hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_TRANSPARENT, CLASS, L"",
+
+    DWORD exStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT;
+
+    DWORD parentExStyle = (DWORD) GetWindowLong(parent, GWL_EXSTYLE);
+
+    if (parentExStyle & WS_EX_LAYOUTRTL) {
+        exStyle |= WS_EX_LAYOUTRTL
+        if (parentExStyle & WS_EX_RTLREADING)
+            exStyle |= WS_EX_RTLREADING
+    }
+
+    hwnd = CreateWindowExW(exStyle, CLASS, L"",
                           WS_CHILD | WS_VISIBLE,
                           0, 0, 0, 0,
                           parent, nullptr, AwtToolkit::GetInstance().GetModuleHandle(), nullptr);
@@ -458,7 +469,7 @@ void CustomTitleBarControls::PaintButton(Type type, State state, int x, int widt
 DWORD styleBits = (DWORD) GetWindowLong(parent, GWL_STYLE);      \
 DWORD exStyleBits = (DWORD) GetWindowLong(parent, GWL_EXSTYLE);  \
 bool allButtons = styleBits & (WS_MINIMIZEBOX | WS_MAXIMIZEBOX); \
-bool ltr = !(exStyleBits & WS_EX_LAYOUTRTL)
+bool ltr = !(exStyleBits & (WS_EX_LAYOUTRTL | WS_EX_RTLREADING))
 
 void CustomTitleBarControls::Update(State windowState) {
     LOAD_STYLE_BITS();
@@ -499,15 +510,10 @@ void CustomTitleBarControls::Update(State windowState) {
     if (allButtons) {
         int w = newSize.cx / 3;
         Type maxType = IsZoomed(parent) ? Type::RESTORE : Type::MAXIMIZE;
-        if (ltr) {
-            PaintButton(Type::MINIMIZE, minState, 0, w, scale, dark);
-            PaintButton(maxType, maxState, w, w, scale, dark);
-            PaintButton(Type::CLOSE, closeState, w*2, newSize.cx-w*2, scale, dark);
-        } else {
-            PaintButton(Type::CLOSE, closeState, 0, newSize.cx-w*2, scale, dark);
-            PaintButton(maxType, maxState, newSize.cx-w*2, w, scale, dark);
-            PaintButton(Type::MINIMIZE, minState, newSize.cx-w, w, scale, dark);
-        }
+
+        PaintButton(Type::MINIMIZE, minState, 0, w, scale, dark);
+        PaintButton(maxType, maxState, w, w, scale, dark);
+        PaintButton(Type::CLOSE, closeState, w*2, newSize.cx-w*2, scale, dark);
     } else {
         PaintButton(Type::CLOSE, closeState, 0, newSize.cx, scale, dark);
     }
