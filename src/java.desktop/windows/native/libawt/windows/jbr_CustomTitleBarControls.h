@@ -68,6 +68,7 @@ private:
     Style* style;
     LRESULT hit;
     bool pressed;
+    bool rtl;
     State windowState;
 
     CustomTitleBarControls(HWND parent, jweak target, const Style& style);
